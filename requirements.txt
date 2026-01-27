@@ -1,0 +1,17 @@
+pandas 
+numpy 
+requests 
+matplotlib 
+seaborn 
+jupyter
+joblib
+scikit-learn
+pymongo
+python-dotenv
+dagshub 
+mlflow
+FastAPI
+uvicorn
+streamlit
+streamlit-option-menu
+
