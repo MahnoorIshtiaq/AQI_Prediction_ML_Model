@@ -45,7 +45,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
-    # Rename target
+    # Base AQI (used only for feature engineering)
     df["aqi"] = df["us_aqi"]
 
     # Metadata
@@ -57,7 +57,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df["month"] = df["timestamp"].dt.month
     df["day_of_week"] = df["timestamp"].dt.dayofweek
 
-    # Lag features
+    # Lag features (past AQI only)
     for lag in LAGS:
         df[f"aqi_lag_{lag}"] = df["aqi"].shift(lag)
 
@@ -67,10 +67,14 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     # Rolling features
     df["rolling_24h_mean"] = df["aqi"].rolling(24).mean()
 
-    # Drop rows with NaNs caused by lagging
-    df = df.dropna().reset_index(drop=True)
+    # 🔑 Target: next-hour AQI
+    df["target_aqi"] = df["aqi"].shift(-1)
+
+    # Remove rows with NaNs (lags + target shift)
+    df = df.dropna(subset=["target_aqi"]).reset_index(drop=True)
 
     return df
+
 
 def save_to_mongodb(df: pd.DataFrame):
     client = MongoClient(os.getenv("MONGODB_URI"))
