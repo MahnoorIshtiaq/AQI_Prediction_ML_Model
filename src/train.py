@@ -83,6 +83,9 @@ def main():
     df = load_training_data()
     
     df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
+    if df.empty:
+    raise ValueError("No valid training rows after NaN filtering")
+
 
     X = df[FEATURE_COLUMNS]
     y = df[TARGET_COLUMN]
