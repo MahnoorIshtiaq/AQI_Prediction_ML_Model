@@ -82,7 +82,8 @@ def main():
 
     df = load_training_data()
     
-    df = df.dropna(subset=[TARGET_COLUMN])
+    df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
+
     X = df[FEATURE_COLUMNS]
     y = df[TARGET_COLUMN]
 
