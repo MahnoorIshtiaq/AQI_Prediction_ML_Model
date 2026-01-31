@@ -12,14 +12,8 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 import dagshub
 import mlflow
 
-# -----------------------
-# Load env
-# -----------------------
 load_dotenv()
 
-# -----------------------
-# Config
-# -----------------------
 FEATURE_COLUMNS = [
     "pm2_5",
     "pm10",
@@ -33,7 +27,7 @@ FEATURE_COLUMNS = [
     "aqi_lag_12",
     "aqi_lag_24",
     "aqi_change_rate",
-    "rolling_24h_mean"
+    "rolling_24h_mean",
 ]
 
 TARGET_COLUMN = "target_aqi"
@@ -41,51 +35,42 @@ TARGET_COLUMN = "target_aqi"
 MODEL_DIR = "models"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# -----------------------
-# MongoDB loader
-# -----------------------
 def load_training_data():
-    print("Loading training data from MongoDB...")
-
     client = MongoClient(os.getenv("MONGODB_URI"))
     db = client[os.getenv("MONGODB_DB")]
     collection = db[os.getenv("MONGODB_COLLECTION")]
 
     df = pd.DataFrame(list(collection.find()))
-    df = df.drop(columns=["_id"])
+    if df.empty:
+        raise ValueError("MongoDB returned no rows")
 
-    print(f"Training rows: {len(df)}")
+    df = df.drop(columns=["_id"])
+    print(f"Loaded {len(df)} rows from MongoDB")
     return df
 
-# -----------------------
-# Evaluation helper
-# -----------------------
 def evaluate(y_true, y_pred):
     return {
         "rmse": mean_squared_error(y_true, y_pred) ** 0.5,
         "mae": mean_absolute_error(y_true, y_pred),
-        "r2": r2_score(y_true, y_pred)
+        "r2": r2_score(y_true, y_pred),
     }
 
-# -----------------------
-# Main training
-# -----------------------
 def main():
-    # Init DagsHub + MLflow
     dagshub.init(
         repo_owner="mahanoorishtiaq03",
         repo_name="my-first-repo",
-        mlflow=True
+        mlflow=True,
     )
 
     mlflow.set_experiment("AQI_Prediction")
 
     df = load_training_data()
-    
-    df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
-    if df.empty:
-    raise ValueError("No valid training rows after NaN filtering")
 
+    df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
+    print(f"Rows after NaN filtering: {len(df)}")
+
+    if df.empty:
+        raise ValueError("No valid training rows after NaN filtering")
 
     X = df[FEATURE_COLUMNS]
     y = df[TARGET_COLUMN]
@@ -97,17 +82,11 @@ def main():
     models = {
         "LinearRegression": LinearRegression(),
         "RandomForest": RandomForestRegressor(
-            n_estimators=200,
-            max_depth=15,
-            random_state=42,
-            n_jobs=-1
+            n_estimators=200, max_depth=15, random_state=42, n_jobs=-1
         ),
         "GradientBoosting": GradientBoostingRegressor(
-            n_estimators=200,
-            learning_rate=0.05,
-            max_depth=4,
-            random_state=42
-        )
+            n_estimators=200, learning_rate=0.05, max_depth=4, random_state=42
+        ),
     }
 
     best_model = None
@@ -120,21 +99,15 @@ def main():
             preds = model.predict(X_test)
 
             metrics = evaluate(y_test, preds)
-
             print(f"\n{name} metrics:", metrics)
 
-            mlflow.log_metrics({
-                f"{name}_rmse": metrics["rmse"],
-                f"{name}_mae": metrics["mae"],
-                f"{name}_r2": metrics["r2"]
-            })
+            mlflow.log_metrics({f"{name}_{k}": v for k, v in metrics.items()})
 
             if metrics["rmse"] < best_rmse:
                 best_rmse = metrics["rmse"]
                 best_model = model
                 best_name = name
 
-        # Save best model
         model_path = os.path.join(MODEL_DIR, "best_aqi_model.pkl")
         joblib.dump(best_model, model_path)
 
@@ -145,6 +118,5 @@ def main():
         print("\n🏆 Best model:", best_name)
         print("🔥 Best RMSE:", best_rmse)
 
-# -----------------------
 if __name__ == "__main__":
     main()
