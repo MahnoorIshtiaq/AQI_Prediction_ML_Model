@@ -1,10 +1,11 @@
 import requests
 import pandas as pd
-from datetime import datetime
 import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
+
 load_dotenv()
+
 LATITUDE = 24.8607
 LONGITUDE = 67.0011
 CITY = "Karachi"
@@ -14,10 +15,23 @@ AQI_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
 LAGS = [1, 3, 6, 12, 24]
 
+FEATURE_COLUMNS = [
+    "pm2_5",
+    "pm10",
+    "hour",
+    "day",
+    "month",
+    "day_of_week",
+    "aqi_lag_1",
+    "aqi_lag_3",
+    "aqi_lag_6",
+    "aqi_lag_12",
+    "aqi_lag_24",
+    "aqi_change_rate",
+    "rolling_24h_mean",
+]
+
 def fetch_raw_aqi_data():
-    """
-    Fetch latest hourly AQI data for Karachi from Open-Meteo
-    """
     params = {
         "latitude": LATITUDE,
         "longitude": LONGITUDE,
@@ -25,56 +39,45 @@ def fetch_raw_aqi_data():
         "timezone": TIMEZONE,
     }
 
-    response = requests.get(AQI_API_URL, params=params)
-    response.raise_for_status()
+    r = requests.get(AQI_API_URL, params=params, timeout=30)
+    r.raise_for_status()
+    data = r.json()
 
-    data = response.json()
-
-    df = pd.DataFrame({
+    return pd.DataFrame({
         "timestamp": pd.to_datetime(data["hourly"]["time"]),
         "pm2_5": data["hourly"]["pm2_5"],
         "pm10": data["hourly"]["pm10"],
         "us_aqi": data["hourly"]["us_aqi"],
     })
 
-    return df
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Create time-based, lag-based, and rolling features
-    """
+    df = df.sort_values("timestamp").copy()
 
-    df = df.copy()
-
-    # Base AQI (used only for feature engineering)
     df["aqi"] = df["us_aqi"]
-
-    # Metadata
     df["city"] = CITY
 
-    # Time-based features
+    # Time features
     df["hour"] = df["timestamp"].dt.hour
     df["day"] = df["timestamp"].dt.day
     df["month"] = df["timestamp"].dt.month
     df["day_of_week"] = df["timestamp"].dt.dayofweek
 
-    # Lag features (past AQI only)
+    # Lag features
     for lag in LAGS:
         df[f"aqi_lag_{lag}"] = df["aqi"].shift(lag)
 
-    # AQI change rate
     df["aqi_change_rate"] = df["aqi"] - df["aqi"].shift(1)
-
-    # Rolling features
     df["rolling_24h_mean"] = df["aqi"].rolling(24).mean()
 
-    # 🔑 Target: next-hour AQI
+    # Target
     df["target_aqi"] = df["aqi"].shift(-1)
 
-    # Remove rows with NaNs (lags + target shift)
-    df = df.dropna(subset=["target_aqi"]).reset_index(drop=True)
+    # 🔑 Drop NaNs for ALL required columns
+    df = df.dropna(
+        subset=FEATURE_COLUMNS + ["target_aqi"]
+    ).reset_index(drop=True)
 
     return df
-
 
 def save_to_mongodb(df: pd.DataFrame):
     client = MongoClient(os.getenv("MONGODB_URI"))
@@ -88,22 +91,18 @@ def save_to_mongodb(df: pd.DataFrame):
     for r in records:
         r["schema_version"] = 1
 
-    collection.insert_many(records)
+    if records:
+        collection.insert_many(records)
 
-    print(f"Inserted {len(records)} feature rows into MongoDB")
-
+    print(f"Inserted {len(records)} rows into MongoDB")
 
 def run_feature_pipeline():
-    raw_df = fetch_raw_aqi_data()
-    feature_df = engineer_features(raw_df)
-    save_to_mongodb(feature_df)
-    return feature_df
-
+    raw = fetch_raw_aqi_data()
+    features = engineer_features(raw)
+    save_to_mongodb(features)
+    return features
 
 if __name__ == "__main__":
     df = run_feature_pipeline()
     print(df.head())
     print(f"Generated {len(df)} feature rows")
-
-
-
