@@ -1,7 +1,6 @@
-import os
-import joblib
+import requests
 import pandas as pd
-from datetime import timedelta
+import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -37,9 +36,8 @@ def load_latest_features():
     db = client[os.getenv("MONGODB_DB")]
     collection = db[os.getenv("MONGODB_COLLECTION")]
 
-    df = pd.DataFrame(
-        list(collection.find().sort("timestamp", -1).limit(24))
-    ).sort_values("timestamp")
+    timestamps = df["timestamp"].tolist()
+    collection.delete_many({"timestamp": {"$in": timestamps}})
 
     return df.drop(columns=["_id"]).reset_index(drop=True)
 

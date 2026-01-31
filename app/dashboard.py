@@ -20,6 +20,7 @@ MONGO_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("MONGODB_DB")
 COLLECTION = os.getenv("MONGODB_COLLECTION")
 
+
 # -----------------------------
 # Page config
 # -----------------------------
@@ -170,4 +171,3 @@ else:
 
     Source: US EPA
     """)
-

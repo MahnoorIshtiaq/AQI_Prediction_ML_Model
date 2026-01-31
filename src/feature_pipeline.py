@@ -106,3 +106,4 @@ if __name__ == "__main__":
     df = run_feature_pipeline()
     print(df.head())
     print(f"Generated {len(df)} feature rows")
+    print(f"Generated {len(df)} feature rows")
