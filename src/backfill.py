@@ -16,7 +16,7 @@ CITY = "Karachi"
 TIMEZONE = "Asia/Karachi"
 
 AQI_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
-WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast"
+WEATHER_API_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 HISTORY_DAYS = 90
 
@@ -40,7 +40,7 @@ def fetch_historical_data(start_date, end_date):
     data = r.json()
 
     return pd.DataFrame({
-        "timestamp": pd.to_datetime(data["hourly"]["time"]),
+        "timestamp": pd.to_datetime(data["hourly"]["time"], utc=True),
         "pm2_5": data["hourly"]["pm2_5"],
         "pm10": data["hourly"]["pm10"],
         "no2": data["hourly"]["nitrogen_dioxide"],
@@ -50,6 +50,8 @@ def fetch_historical_data(start_date, end_date):
         "aqi": data["hourly"]["us_aqi"],
         "city": CITY,
     })
+
+
 
 def fetch_weather(start_date, end_date):
     params = {
@@ -62,7 +64,7 @@ def fetch_weather(start_date, end_date):
             "relative_humidity_2m",
             "wind_speed_10m",
         ],
-        "timezone": TIMEZONE,
+        "timezone": "UTC",
     }
 
     r = requests.get(WEATHER_API_URL, params=params, timeout=60)
@@ -70,11 +72,12 @@ def fetch_weather(start_date, end_date):
     data = r.json()
 
     return pd.DataFrame({
-        "timestamp": pd.to_datetime(data["hourly"]["time"]),
+        "timestamp": pd.to_datetime(data["hourly"]["time"], utc=True),
         "temperature": data["hourly"]["temperature_2m"],
         "humidity": data["hourly"]["relative_humidity_2m"],
         "wind_speed": data["hourly"]["wind_speed_10m"],
     })
+
 
 def save_training_data(df):
     client = MongoClient(os.getenv("MONGODB_URI"))
