@@ -1,3 +1,4 @@
+# backfill.py
 import os
 import requests
 import pandas as pd
@@ -7,57 +8,38 @@ from dotenv import load_dotenv
 
 from feature_pipeline import engineer_features
 
-# --------------------------------------------------
-# Load environment variables
-# --------------------------------------------------
 load_dotenv()
 
-# --------------------------------------------------
-# Location & API config
-# --------------------------------------------------
 LATITUDE = 24.8607
 LONGITUDE = 67.0011
 CITY = "Karachi"
 TIMEZONE = "Asia/Karachi"
 
 AQI_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast"
 
-# Number of past days to backfill
 HISTORY_DAYS = 90
 
-# --------------------------------------------------
-# MongoDB config
-# --------------------------------------------------
-MONGODB_URI = os.getenv("MONGODB_URI")
-MONGODB_DB = os.getenv("MONGODB_DB")
-MONGODB_COLLECTION = "training_features"
-
-# --------------------------------------------------
-# Fetch historical AQI + pollutant data
-# --------------------------------------------------
-def fetch_historical_data(start_date: str, end_date: str) -> pd.DataFrame:
+def fetch_historical_data(start_date, end_date):
     params = {
         "latitude": LATITUDE,
         "longitude": LONGITUDE,
         "start_date": start_date,
         "end_date": end_date,
         "hourly": [
-            "pm2_5",
-            "pm10",
-            "nitrogen_dioxide",
-            "ozone",
-            "carbon_monoxide",
-            "sulphur_dioxide",
+            "pm2_5", "pm10",
+            "nitrogen_dioxide", "ozone",
+            "carbon_monoxide", "sulphur_dioxide",
             "us_aqi",
         ],
         "timezone": TIMEZONE,
     }
 
-    response = requests.get(AQI_API_URL, params=params, timeout=60)
-    response.raise_for_status()
-    data = response.json()
+    r = requests.get(AQI_API_URL, params=params, timeout=60)
+    r.raise_for_status()
+    data = r.json()
 
-    df = pd.DataFrame({
+    return pd.DataFrame({
         "timestamp": pd.to_datetime(data["hourly"]["time"]),
         "pm2_5": data["hourly"]["pm2_5"],
         "pm10": data["hourly"]["pm10"],
@@ -66,66 +48,67 @@ def fetch_historical_data(start_date: str, end_date: str) -> pd.DataFrame:
         "co": data["hourly"]["carbon_monoxide"],
         "so2": data["hourly"]["sulphur_dioxide"],
         "aqi": data["hourly"]["us_aqi"],
+        "city": CITY,
     })
 
-    df["city"] = CITY
-    return df
+def fetch_weather(start_date, end_date):
+    params = {
+        "latitude": LATITUDE,
+        "longitude": LONGITUDE,
+        "start_date": start_date,
+        "end_date": end_date,
+        "hourly": [
+            "temperature_2m",
+            "relative_humidity_2m",
+            "wind_speed_10m",
+        ],
+        "timezone": TIMEZONE,
+    }
 
+    r = requests.get(WEATHER_API_URL, params=params, timeout=60)
+    r.raise_for_status()
+    data = r.json()
 
-# --------------------------------------------------
-# Save engineered features to Feature Store
-# --------------------------------------------------
-def save_training_data(df: pd.DataFrame) -> None:
-    client = MongoClient(MONGODB_URI)
-    db = client[MONGODB_DB]
-    collection = db[MONGODB_COLLECTION]
+    return pd.DataFrame({
+        "timestamp": pd.to_datetime(data["hourly"]["time"]),
+        "temperature": data["hourly"]["temperature_2m"],
+        "humidity": data["hourly"]["relative_humidity_2m"],
+        "wind_speed": data["hourly"]["wind_speed_10m"],
+    })
 
-    # Remove old training data for this city
-    collection.delete_many({
+def save_training_data(df):
+    client = MongoClient(os.getenv("MONGODB_URI"))
+    db = client[os.getenv("MONGODB_DB")]
+    col = db["training_features"]
+
+    col.delete_many({
         "city": CITY,
         "dataset_type": "training"
     })
 
-    records = df.to_dict(orient="records")
-
+    records = df.to_dict("records")
     for r in records:
-        r["schema_version"] = 1
         r["dataset_type"] = "training"
+        r["schema_version"] = 2
 
     if records:
-        collection.insert_many(records)
+        col.insert_many(records)
 
-    print(f"✅ Inserted {len(records)} training rows into MongoDB")
+    print(f"Inserted {len(records)} training rows")
 
-
-# --------------------------------------------------
-# Backfill runner
-# --------------------------------------------------
-def run_backfill() -> pd.DataFrame:
+def run_backfill():
     end_date = datetime.utcnow().date()
     start_date = end_date - timedelta(days=HISTORY_DAYS)
 
-    print(f"📦 Backfilling AQI data from {start_date} to {end_date}")
+    aqi = fetch_historical_data(start_date.isoformat(), end_date.isoformat())
+    weather = fetch_weather(start_date.isoformat(), end_date.isoformat())
 
-    # 1. Fetch raw historical data
-    raw_df = fetch_historical_data(
-        start_date=start_date.isoformat(),
-        end_date=end_date.isoformat(),
-    )
+    raw = aqi.merge(weather, on="timestamp", how="left")
+    features = engineer_features(raw)
 
-    # 2. Engineer features + target
-    feature_df = engineer_features(raw_df)
+    save_training_data(features)
+    return features
 
-    # 3. Save to Feature Store
-    save_training_data(feature_df)
-
-    return feature_df
-
-
-# --------------------------------------------------
-# Entry point
-# --------------------------------------------------
 if __name__ == "__main__":
     df = run_backfill()
-    print("Sample rows:")
     print(df.head())
