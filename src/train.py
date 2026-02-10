@@ -1,3 +1,4 @@
+# src/train.py
 import os
 import joblib
 import pandas as pd
@@ -21,45 +22,40 @@ load_dotenv()
 # Config
 # --------------------------------------------------
 FEATURE_COLUMNS = [
-    "pm2_5",
-    "pm10",
-    "no2",
-    "o3",
-    "co",
-    "so2",
-    "hour",
-    "day",
-    "month",
-    "day_of_week",
-    "aqi_lag_1",
-    "aqi_lag_24",
-    "aqi_change_1h",
-    "aqi_change_24h",
+    "pm2_5", "pm10", "no2", "o3", "co", "so2",
+    "hour", "day", "month", "day_of_week",
+    "aqi_lag_1", "aqi_lag_24",
+    "aqi_change_1h", "aqi_change_24h",
 ]
 
 TARGET_COLUMN = "target_aqi"
 
 MODEL_DIR = "models"
+MODEL_PATH = os.path.join(MODEL_DIR, "aqi_model.pkl")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # --------------------------------------------------
-# MongoDB loader
+# Load training data
 # --------------------------------------------------
 def load_training_data() -> pd.DataFrame:
-    client = MongoClient(os.getenv("MONGODB_URI"))
-    db = client[os.getenv("MONGODB_DB")]
-    collection = db["training_features"]
+    col = MongoClient(
+        os.getenv("MONGODB_URI")
+    )[os.getenv("MONGODB_DB")]["training_features"]
 
-    df = pd.DataFrame(list(collection.find({
-        "dataset_type": "training"
-    })))
+    df = pd.DataFrame(
+        list(col.find({"dataset_type": "training"}))
+    )
 
-    if "_id" in df.columns:
-        df = df.drop(columns=["_id"])
+    if df.empty:
+        raise ValueError("No training data found in MongoDB")
 
-    df = df.sort_values("timestamp").reset_index(drop=True)
-    return df
+    df = df.drop(columns=["_id"], errors="ignore")
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
 
+    # Drop rows with missing features
+    df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
+
+    return df.sort_values("timestamp").reset_index(drop=True)
 
 # --------------------------------------------------
 # Metrics
@@ -75,80 +71,67 @@ def compute_metrics(y_true, y_pred):
     }
 
 
-
 # --------------------------------------------------
-# Time-aware train/validation split
+# Time-based split (NO leakage)
 # --------------------------------------------------
 def time_split(df: pd.DataFrame):
-    split_idx = int(len(df) * 0.8)
-    train_df = df.iloc[:split_idx]
-    val_df = df.iloc[split_idx:]
+    split = int(len(df) * 0.8)
 
-    X_train = train_df[FEATURE_COLUMNS]
-    y_train = train_df[TARGET_COLUMN]
+    train, val = df.iloc[:split], df.iloc[split:]
 
-    X_val = val_df[FEATURE_COLUMNS]
-    y_val = val_df[TARGET_COLUMN]
-
-    return X_train, X_val, y_train, y_val
-
+    return (
+        train[FEATURE_COLUMNS],
+        val[FEATURE_COLUMNS],
+        train[TARGET_COLUMN],
+        val[TARGET_COLUMN],
+    )
 
 # --------------------------------------------------
-# Models to compare
+# Models
 # --------------------------------------------------
 MODELS = {
-    "gbr": GradientBoostingRegressor(
+    "GradientBoosting": GradientBoostingRegressor(
         n_estimators=300,
         learning_rate=0.05,
         max_depth=4,
         random_state=42,
     ),
-    "rf": RandomForestRegressor(
+    "RandomForest": RandomForestRegressor(
         n_estimators=300,
         max_depth=10,
-        random_state=42,
         n_jobs=-1,
+        random_state=42,
     ),
-    "ridge": Ridge(alpha=1.0),
+    "Ridge": Ridge(alpha=1.0),
 }
 
-
 # --------------------------------------------------
-# Training routine
+# Train + select best
 # --------------------------------------------------
 def train_models(df: pd.DataFrame):
-    # Safety check
-    if len(df) < 100:
-        raise ValueError(
-            f"Not enough training data. Found only {len(df)} rows."
-        )
-
     X_train, X_val, y_train, y_val = time_split(df)
 
     results = {}
-    trained_models = {}
+    trained = {}
 
     for name, model in MODELS.items():
-        print(f"🚀 Training model: {name}")
+        print(f"🚀 Training {name}")
 
         model.fit(X_train, y_train)
         preds = model.predict(X_val)
 
         metrics = compute_metrics(y_val, preds)
         results[name] = metrics
-        trained_models[name] = model
+        trained[name] = model
 
         print(
-            f"   RMSE={metrics['rmse']:.2f}, "
-            f"MAE={metrics['mae']:.2f}, "
+            f"   RMSE={metrics['rmse']:.2f} | "
+            f"MAE={metrics['mae']:.2f} | "
             f"R²={metrics['r2']:.3f}"
         )
 
-    best_model_name = min(results, key=lambda m: results[m]["rmse"])
-    best_model = trained_models[best_model_name]
-
-    return best_model_name, best_model, results
-
+    best_name = min(results, key=lambda m: results[m]["rmse"])
+    return best_name, trained[best_name], results
 
 # --------------------------------------------------
 # Main
@@ -163,24 +146,24 @@ def main():
     mlflow.set_experiment("AQI_NextHour_Forecasting")
 
     df = load_training_data()
-    print(f"📊 Loaded {len(df)} training rows")
+    print(f"📊 Training rows: {len(df)}")
 
     run_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     with mlflow.start_run(run_name=f"daily-train-{run_date}"):
 
-        mlflow.log_param("feature_set", "v1")
-        mlflow.log_param("training_frequency", "daily")
-        mlflow.log_param("data_granularity", "hourly")
-        mlflow.log_param("target", TARGET_COLUMN)
+        mlflow.log_params({
+            "feature_set": "v2",
+            "granularity": "hourly",
+            "target": TARGET_COLUMN,
+        })
 
         best_name, best_model, metrics = train_models(df)
 
-        model_path = os.path.join(MODEL_DIR, "aqi_model.pkl")
-        joblib.dump(best_model, model_path)
+        joblib.dump(best_model, MODEL_PATH)
+        mlflow.log_artifact(MODEL_PATH)
 
-        print(f"\n✅ Best model: {best_name}")
-        print(f"📦 Model saved to: {model_path}")
+        mlflow.log_param("best_model", best_name)
 
         for model_name, m in metrics.items():
             mlflow.log_metrics({
@@ -189,12 +172,8 @@ def main():
                 f"{model_name}_r2": m["r2"],
             })
 
-        mlflow.log_param("best_model", best_name)
-        mlflow.log_artifact(model_path)
+        print(f"\n✅ Best model: {best_name}")
+        print(f"📦 Saved to {MODEL_PATH}")
 
-
-# --------------------------------------------------
-# Entry point
-# --------------------------------------------------
 if __name__ == "__main__":
     main()
