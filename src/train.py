@@ -40,19 +40,18 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 def load_training_data() -> pd.DataFrame:
     col = MongoClient(
         os.getenv("MONGODB_URI")
-    )[os.getenv("MONGODB_DB")]["training_features"]
+    )[os.getenv("MONGODB_DB")]["aqi_features_v1"]
 
     df = pd.DataFrame(
-        list(col.find({"dataset_type": "training"}))
+        list(col.find({"dataset_type": "online"}))
     )
 
     if df.empty:
-        raise ValueError("No training data found in MongoDB")
+        raise ValueError("No data found in MongoDB")
 
     df = df.drop(columns=["_id"], errors="ignore")
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
 
-    # Drop rows with missing features
     df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
 
     return df.sort_values("timestamp").reset_index(drop=True)
@@ -115,7 +114,7 @@ def train_models(df: pd.DataFrame):
     trained = {}
 
     for name, model in MODELS.items():
-        print(f"🚀 Training {name}")
+        print(f"Training {name}")
 
         model.fit(X_train, y_train)
         preds = model.predict(X_val)
@@ -146,7 +145,7 @@ def main():
     mlflow.set_experiment("AQI_NextHour_Forecasting")
 
     df = load_training_data()
-    print(f"📊 Training rows: {len(df)}")
+    print(f"Training rows: {len(df)}")
 
     run_date = datetime.utcnow().strftime("%Y-%m-%d")
 
@@ -172,8 +171,8 @@ def main():
                 f"{model_name}_r2": m["r2"],
             })
 
-        print(f"\n✅ Best model: {best_name}")
-        print(f"📦 Saved to {MODEL_PATH}")
+        print(f"\nBest model: {best_name}")
+        print(f"Saved to {MODEL_PATH}")
 
 if __name__ == "__main__":
     main()
