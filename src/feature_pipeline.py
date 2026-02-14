@@ -1,4 +1,4 @@
-# feature_pipeline.py
+# src\feature_pipeline.py
 import requests
 import pandas as pd
 import os
@@ -128,7 +128,7 @@ def save_to_mongodb(df: pd.DataFrame) -> None:
     if records:
         col.insert_many(records)
 
-    print(f"Inserted {len(records)} online feature rows")
+    print(f"✅ Inserted {len(records)} online feature rows")
 
 # --------------------------------------------------
 # Runner
