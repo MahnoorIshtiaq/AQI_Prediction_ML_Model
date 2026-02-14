@@ -1,4 +1,4 @@
-# backfill.py
+# backfill.py - CORRECTED VERSION
 import os
 import requests
 import pandas as pd
@@ -18,9 +18,10 @@ TIMEZONE = "Asia/Karachi"
 AQI_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 WEATHER_API_URL = "https://archive-api.open-meteo.com/v1/archive"
 
-HISTORY_DAYS = 90
+HISTORY_DAYS = 90  # 90 days for training data
 
 def fetch_historical_data(start_date, end_date):
+    """Fetch historical AQI and pollutant data"""
     params = {
         "latitude": LATITUDE,
         "longitude": LONGITUDE,
@@ -32,7 +33,7 @@ def fetch_historical_data(start_date, end_date):
             "carbon_monoxide", "sulphur_dioxide",
             "us_aqi",
         ],
-        "timezone": TIMEZONE,
+        "timezone": "UTC",  # FIXED: Use UTC consistently
     }
 
     r = requests.get(AQI_API_URL, params=params, timeout=60)
@@ -52,8 +53,8 @@ def fetch_historical_data(start_date, end_date):
     })
 
 
-
 def fetch_weather(start_date, end_date):
+    """Fetch historical weather data"""
     params = {
         "latitude": LATITUDE,
         "longitude": LONGITUDE,
@@ -64,7 +65,7 @@ def fetch_weather(start_date, end_date):
             "relative_humidity_2m",
             "wind_speed_10m",
         ],
-        "timezone": "UTC",
+        "timezone": "UTC",  # Consistent timezone
     }
 
     r = requests.get(WEATHER_API_URL, params=params, timeout=60)
@@ -80,38 +81,62 @@ def fetch_weather(start_date, end_date):
 
 
 def save_training_data(df):
+    """Save historical data to MongoDB - CORRECTED"""
     client = MongoClient(os.getenv("MONGODB_URI"))
     db = client[os.getenv("MONGODB_DB")]
-    col = db["training_features"]
+    
+    # FIXED: Use the same collection as feature_pipeline
+    col = db[os.getenv("MONGODB_COLLECTION")]  # aqi_features_v1
 
+    # Delete existing historical data for this city
     col.delete_many({
         "city": CITY,
-        "dataset_type": "training"
+        "dataset_type": "historical"  # Different type from online
     })
 
     records = df.to_dict("records")
     for r in records:
-        r["dataset_type"] = "training"
+        r["dataset_type"] = "historical"  # Mark as historical for training
         r["schema_version"] = 2
 
     if records:
         col.insert_many(records)
 
-    print(f"Inserted {len(records)} training rows")
+    print(f"✅ Inserted {len(records)} historical training rows to {os.getenv('MONGODB_COLLECTION')}")
+
 
 def run_backfill():
+    """Main backfill function"""
     end_date = datetime.utcnow().date()
     start_date = end_date - timedelta(days=HISTORY_DAYS)
 
+    print(f"📅 Backfilling from {start_date} to {end_date}")
+
+    # Fetch data
+    print("🌍 Fetching AQI data...")
     aqi = fetch_historical_data(start_date.isoformat(), end_date.isoformat())
+    
+    print("🌤 Fetching weather data...")
     weather = fetch_weather(start_date.isoformat(), end_date.isoformat())
 
+    # Merge datasets
+    print("🔗 Merging datasets...")
     raw = aqi.merge(weather, on="timestamp", how="left")
+    
+    # Engineer features
+    print("⚙️ Engineering features...")
     features = engineer_features(raw)
 
+    # Save to MongoDB
+    print("💾 Saving to MongoDB...")
     save_training_data(features)
+    
     return features
+
 
 if __name__ == "__main__":
     df = run_backfill()
+    print(f"\n📊 Final dataset shape: {df.shape}")
+    print(f"📊 Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+    print(f"\n🔍 Sample rows:")
     print(df.head())
