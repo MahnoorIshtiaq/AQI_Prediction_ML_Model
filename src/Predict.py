@@ -1,151 +1,203 @@
 # src/Predict.py
 
 import os
-from datetime import timedelta
 import pandas as pd
-import joblib
+import numpy as np
+import mlflow
+from datetime import datetime, timedelta, timezone
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from collections import deque
 
 load_dotenv()
 
 # --------------------------------------------------
 # Config
 # --------------------------------------------------
-CITY = "Karachi"
-FORECAST_HOURS = 72
-MODEL_PATH = "models/aqi_model.pkl"
 
+LAT, LON = 24.8607, 67.0011
+FORECAST_HOURS = 72
+
+# CORRECTED: Added weather features
 FEATURE_COLUMNS = [
-    "pm2_5",
-    "pm10",
-    "no2",
-    "o3",
-    "co",
-    "so2",
-    "hour",
-    "day",
-    "month",
-    "day_of_week",
-    "aqi_lag_1",
-    "aqi_lag_24",
-    "aqi_change_1h",
-    "aqi_change_24h",
+    "pm2_5", "pm10", "no2", "o3", "co", "so2",
+    "temperature", "humidity", "wind_speed",  # ADDED
+    "hour", "day", "month", "day_of_week",
+    "aqi_lag_1", "aqi_lag_24",
+    "aqi_change_1h", "aqi_change_24h",
 ]
 
-# --------------------------------------------------
-# Load latest feature rows from Feature Store
-# --------------------------------------------------
-def load_latest_features() -> pd.DataFrame:
-    client = MongoClient(os.getenv("MONGODB_URI"))
-    db = client[os.getenv("MONGODB_DB")]
-    collection = db["training_features"]
+MODEL_NAME = "AQI_NextHour_Model"
 
-    # Need at least 24h history for lags
-    df = pd.DataFrame(
-        list(
-            collection.find(
-                {"dataset_type": "training", "city": CITY}
-            ).sort("timestamp", -1).limit(48)
-        )
+# --------------------------------------------------
+# Load Production Model
+# --------------------------------------------------
+
+def load_model():
+    """Load the production model from MLflow"""
+    model_uri = f"models:/{MODEL_NAME}/Production"
+    model = mlflow.pyfunc.load_model(model_uri)
+    print(f"✅ Loaded model: {MODEL_NAME}/Production")
+    return model
+
+
+# --------------------------------------------------
+# Load latest feature row
+# --------------------------------------------------
+
+def load_latest_features():
+    """Load the most recent feature row from MongoDB"""
+    col = MongoClient(
+        os.getenv("MONGODB_URI")
+    )[os.getenv("MONGODB_DB")][os.getenv("MONGODB_COLLECTION")]
+
+    doc = col.find_one(
+        {"dataset_type": "online"},
+        sort=[("timestamp", -1)]
     )
 
-    if df.empty:
-        raise ValueError("❌ No feature data found in MongoDB")
+    if not doc:
+        raise ValueError("❌ No online features found in MongoDB")
 
-    df = df.drop(columns=["_id"])
-    df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df = df.sort_values("timestamp").reset_index(drop=True)
+    doc.pop("_id", None)
+
+    df = pd.DataFrame([doc])
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+
+    print(f"📊 Loaded latest features from: {df['timestamp'].iloc[0]}")
 
     return df
 
 
 # --------------------------------------------------
-# Load trained model
+# Recursive Hourly Forecast - CORRECTED
 # --------------------------------------------------
-def load_model():
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(
-            f"❌ Model not found at {MODEL_PATH}. Run train.py first."
-        )
-    return joblib.load(MODEL_PATH)
 
+def hourly_forecast():
+    """
+    Generate 72-hour recursive forecast with proper lag handling
+    """
 
-# --------------------------------------------------
-# Recursive AQI forecast (next 72 hours)
-# --------------------------------------------------
-def hourly_forecast() -> list:
-    history = load_latest_features()
     model = load_model()
+    last_row = load_latest_features()
 
-    current = history.copy()
     forecasts = []
 
-    for step in range(FORECAST_HOURS):
-        last = current.iloc[-1]
-        next_time = last["timestamp"] + timedelta(hours=1)
+    # Initialize state
+    last = last_row.iloc[0].to_dict()
+    current_time = last["timestamp"]
 
-        X = last[FEATURE_COLUMNS].to_frame().T
-        pred_aqi = float(model.predict(X)[0])
+    # FIXED: Maintain a proper 24-hour lag history
+    aqi_history = deque(maxlen=24)
+    
+    # Populate with current and lagged values
+    aqi_history.append(last["aqi_lag_24"])  # 24 hours ago
+    for _ in range(22):  # Fill intermediate hours (we don't have them)
+        aqi_history.append(last["aqi_lag_24"])  # Use same value
+    aqi_history.append(last["aqi_lag_1"])  # 1 hour ago
 
-        # Safety clamp (prevents explosion)
-        pred_aqi = max(last["aqi"] - 30, min(last["aqi"] + 30, pred_aqi))
+    print(f"🔮 Generating {FORECAST_HOURS}-hour forecast...")
 
-        # Build next row
-        new = last.copy()
-        new["timestamp"] = next_time
-        new["aqi"] = pred_aqi
+    for i in range(FORECAST_HOURS):
 
-        # Update lag features
-        new["aqi_lag_24"] = current.iloc[-24]["aqi"]
-        new["aqi_lag_1"] = last["aqi"]
+        # Move time forward
+        current_time = current_time + timedelta(hours=1)
 
-        # Update change features
-        new["aqi_change_1h"] = pred_aqi - last["aqi"]
-        new["aqi_change_24h"] = pred_aqi - current.iloc[-24]["aqi"]
+        # Update time-based features
+        last["hour"] = current_time.hour
+        last["day"] = current_time.day
+        last["month"] = current_time.month
+        last["day_of_week"] = current_time.dayofweek
 
-        # Update time features
-        new["hour"] = next_time.hour
-        new["day"] = next_time.day
-        new["month"] = next_time.month
-        new["day_of_week"] = next_time.dayofweek
+        # Predict next AQI
+        input_df = pd.DataFrame([{k: last[k] for k in FEATURE_COLUMNS}])
+        pred_aqi = float(model.predict(input_df)[0])
+        
+        # Ensure non-negative AQI
+        pred_aqi = max(0, pred_aqi)
 
-        current = pd.concat([current, pd.DataFrame([new])], ignore_index=True)
-
+        # Store prediction
         forecasts.append({
-            "timestamp": next_time.isoformat(),
-            "aqi": round(pred_aqi),
+            "timestamp": current_time.isoformat(),
+            "predicted_aqi": round(pred_aqi, 2)
         })
+
+        # ----------------------------
+        # CORRECTED: Recursive feature updates
+        # ----------------------------
+
+        # Update AQI history
+        aqi_history.append(pred_aqi)
+
+        # Update lag features CORRECTLY
+        last["aqi_lag_1"] = pred_aqi
+        last["aqi_lag_24"] = aqi_history[0]  # Correct 24-hour lag
+
+        # Update change rates
+        last["aqi_change_1h"] = pred_aqi - aqi_history[-2]  # Compare to 1h ago
+        last["aqi_change_24h"] = pred_aqi - aqi_history[0]  # Compare to 24h ago
+
+        # ----------------------------
+        # CORRECTED: Realistic pollutant & weather drift
+        # ----------------------------
+        
+        # Pollutant drift (based on AQI change)
+        aqi_delta = pred_aqi - aqi_history[-2]
+        
+        for col in ["pm2_5", "pm10", "no2", "o3", "co", "so2"]:
+            # Drift proportional to AQI change with some noise
+            drift = aqi_delta * 0.03 + np.random.normal(0, 0.5)
+            last[col] = max(0, last[col] + drift)
+
+        # ADDED: Weather feature drift (gradual changes)
+        # Temperature: small random walk
+        last["temperature"] += np.random.normal(0, 0.3)
+        
+        # Humidity: bounded random walk
+        last["humidity"] += np.random.normal(0, 1.0)
+        last["humidity"] = np.clip(last["humidity"], 0, 100)
+        
+        # Wind speed: small variations
+        last["wind_speed"] = max(0, last["wind_speed"] + np.random.normal(0, 0.2))
+
+    print(f"✅ Generated {len(forecasts)} hourly predictions")
 
     return forecasts
 
 
 # --------------------------------------------------
-# Public API helper
+# Public function
 # --------------------------------------------------
-def get_72h_forecast() -> dict:
-    forecast = hourly_forecast()
-    max_aqi = max(f["aqi"] for f in forecast)
 
-    return {
-        "city": CITY,
-        "hours": 72,
-        "max_aqi": max_aqi,
-        "risk_level": (
-            "Hazardous" if max_aqi > 200 else
-            "Unhealthy" if max_aqi > 150 else
-            "Moderate"
-        ),
-        "forecast": forecast,
-    }
+def get_72h_forecast():
+    """
+    Public API function to get 72-hour forecast
+    Returns: List of dicts with timestamp and predicted_aqi
+    """
+    return hourly_forecast()
 
 
 # --------------------------------------------------
-# Local test
+# Run standalone test
 # --------------------------------------------------
+
 if __name__ == "__main__":
+    print("Testing forecast generation...\n")
+    
     result = get_72h_forecast()
-    print(f"Max AQI next 72h: {result['max_aqi']}")
-    print("First 5 predictions:")
-    for row in result["forecast"][:5]:
-        print(row)
+    
+    print(f"\nFirst 5 predictions:")
+    for pred in result[:5]:
+        print(f"   {pred['timestamp']}: AQI = {pred['predicted_aqi']}")
+    
+    print(f"\nLast 5 predictions:")
+    for pred in result[-5:]:
+        print(f"   {pred['timestamp']}: AQI = {pred['predicted_aqi']}")
+    
+    # Statistics
+    aqis = [p['predicted_aqi'] for p in result]
+    print(f"\nForecast statistics:")
+    print(f"   Mean AQI: {np.mean(aqis):.2f}")
+    print(f"   Min AQI: {np.min(aqis):.2f}")
+    print(f"   Max AQI: {np.max(aqis):.2f}")
+    print(f"   Std Dev: {np.std(aqis):.2f}")
