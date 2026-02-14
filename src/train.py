@@ -1,4 +1,4 @@
-# src/train.py 
+# src/train.py
 
 import os
 import pandas as pd
@@ -10,7 +10,6 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-import dagshub
 import mlflow
 import mlflow.sklearn
 from mlflow.tracking import MlflowClient
@@ -25,7 +24,7 @@ load_dotenv()
 # --------------------------------------------------
 FEATURE_COLUMNS = [
     "pm2_5", "pm10", "no2", "o3", "co", "so2",
-    "temperature", "humidity", "wind_speed",  # ADDED: Weather features
+    "temperature", "humidity", "wind_speed",  
     "hour", "day", "month", "day_of_week",
     "aqi_lag_1", "aqi_lag_24",
     "aqi_change_1h", "aqi_change_24h",
@@ -44,7 +43,6 @@ def load_training_data() -> pd.DataFrame:
         os.getenv("MONGODB_URI")
     )[os.getenv("MONGODB_DB")][os.getenv("MONGODB_COLLECTION")]
 
-    # FIXED: Load BOTH historical and online data
     df = pd.DataFrame(
         list(col.find({"dataset_type": {"$in": ["historical", "online"]}}))
     )
@@ -103,18 +101,18 @@ MODELS = {
     "GradientBoosting": GradientBoostingRegressor(
         n_estimators=300,
         learning_rate=0.05,
-        max_depth=5,  # Increased from 4
-        min_samples_split=10,  # Added
-        min_samples_leaf=4,  # Added
-        subsample=0.8,  # Added
+        max_depth=5,  
+        min_samples_split=10,  
+        min_samples_leaf=4,  
+        subsample=0.8,  
         random_state=42,
     ),
     "RandomForest": RandomForestRegressor(
         n_estimators=300,
-        max_depth=15,  # Increased from 10
-        min_samples_split=10,  # Added
-        min_samples_leaf=4,  # Added
-        max_features='sqrt',  # Added
+        max_depth=15,  
+        min_samples_split=10,  
+        min_samples_leaf=4,  
+        max_features='sqrt',
         n_jobs=-1,
         random_state=42,
     ),
@@ -125,17 +123,29 @@ MODELS = {
 }
 
 # --------------------------------------------------
-# Main - CORRECTED: Proper metric logging
+# Main  GitHub Actions compatible DagsHub/MLflow setup
 # --------------------------------------------------
 def main():
     """Main training pipeline"""
     
-    # Initialize DagsHub
-    dagshub.init(
-        repo_owner=os.getenv("DAGSHUB_REPO_OWNER"),
-        repo_name=os.getenv("DAGSHUB_REPO_NAME"),
-        mlflow=True,
-    )
+    # Initialize MLflow with DagsHub tracking URI
+
+    repo_owner = os.getenv("DAGSHUB_REPO_OWNER")
+    repo_name = os.getenv("DAGSHUB_REPO_NAME")
+    dagshub_token = os.getenv("DAGSHUB_TOKEN")
+    dagshub_username = os.getenv("DAGSHUB_USERNAME", repo_owner)
+    
+    if not all([repo_owner, repo_name, dagshub_token]):
+        raise ValueError("❌ Missing DagsHub credentials in environment variables")
+
+    mlflow_tracking_uri = f"https://dagshub.com/{repo_owner}/{repo_name}.mlflow"
+    mlflow.set_tracking_uri(mlflow_tracking_uri)
+    
+    # Set DagsHub credentials for authentication
+    os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_username
+    os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+    
+    print(f"🔗 MLflow Tracking URI: {mlflow_tracking_uri}")
 
     mlflow.set_experiment(EXPERIMENT_NAME)
 
@@ -171,24 +181,20 @@ def main():
             model.fit(X_train, y_train)
             preds = model.predict(X_val)
 
-            # Calculate metrics
             metrics = compute_metrics(y_val, preds)
 
-            # FIXED: Log metrics with proper naming for dashboard
             mlflow.log_metrics({
                 "rmse": metrics["rmse"],
                 "mae": metrics["mae"],
                 "r2": metrics["r2"],
             })
             
-            # Also log with model name prefix for comparison
             mlflow.log_metrics({
                 f"{name}_rmse": metrics["rmse"],
                 f"{name}_mae": metrics["mae"],
                 f"{name}_r2": metrics["r2"],
             })
             
-            # ADDED: Log model name as tag for dashboard filtering
             mlflow.set_tag("model_name", name)
 
             print(
