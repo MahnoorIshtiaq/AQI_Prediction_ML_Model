@@ -1,4 +1,4 @@
-# src/Predict.py
+# src/Predict.py - CORRECTED VERSION
 
 import os
 import pandas as pd
@@ -182,21 +182,21 @@ def get_72h_forecast():
 # --------------------------------------------------
 
 if __name__ == "__main__":
-    print("Testing forecast generation...\n")
+    print("🧪 Testing forecast generation...\n")
     
     result = get_72h_forecast()
     
-    print(f"\nFirst 5 predictions:")
+    print(f"\n📊 First 5 predictions:")
     for pred in result[:5]:
         print(f"   {pred['timestamp']}: AQI = {pred['predicted_aqi']}")
     
-    print(f"\nLast 5 predictions:")
+    print(f"\n📊 Last 5 predictions:")
     for pred in result[-5:]:
         print(f"   {pred['timestamp']}: AQI = {pred['predicted_aqi']}")
     
     # Statistics
     aqis = [p['predicted_aqi'] for p in result]
-    print(f"\nForecast statistics:")
+    print(f"\n📈 Forecast statistics:")
     print(f"   Mean AQI: {np.mean(aqis):.2f}")
     print(f"   Min AQI: {np.min(aqis):.2f}")
     print(f"   Max AQI: {np.max(aqis):.2f}")
