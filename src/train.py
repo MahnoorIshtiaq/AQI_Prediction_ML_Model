@@ -10,7 +10,6 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# CRITICAL: Import dagshub FIRST
 import dagshub
 import mlflow
 import mlflow.sklearn
@@ -141,12 +140,12 @@ def main():
     print(f"🔗 Connecting to DagsHub...")
     print(f"   Repository: {repo_owner}/{repo_name}")
     
-    # CRITICAL: Initialize DagsHub FIRST
     # This sets up authentication and MLflow tracking
     dagshub.init(
         repo_owner=repo_owner,
         repo_name=repo_name,
-        mlflow=True
+        mlflow=True,
+        token=dagshub_token
     )
     
     print(f"✅ DagsHub initialized")
