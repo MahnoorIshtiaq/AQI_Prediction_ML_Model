@@ -1,4 +1,4 @@
-# src/train.py
+# src/train.py 
 
 import os
 import pandas as pd
@@ -10,6 +10,8 @@ from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+# CRITICAL: Import dagshub FIRST
+import dagshub
 import mlflow
 import mlflow.sklearn
 from mlflow.tracking import MlflowClient
@@ -20,22 +22,21 @@ from mlflow.tracking import MlflowClient
 load_dotenv()
 
 # --------------------------------------------------
-# Config - CORRECTED: Added weather features
+# Config
 # --------------------------------------------------
 FEATURE_COLUMNS = [
     "pm2_5", "pm10", "no2", "o3", "co", "so2",
-    "temperature", "humidity", "wind_speed",  
+    "temperature", "humidity", "wind_speed",
     "hour", "day", "month", "day_of_week",
     "aqi_lag_1", "aqi_lag_24",
     "aqi_change_1h", "aqi_change_24h",
 ]
 
 TARGET_COLUMN = "target_aqi"
-
 EXPERIMENT_NAME = "AQI_NextHour_Forecasting"
 
 # --------------------------------------------------
-# Load training data - CORRECTED
+# Load training data
 # --------------------------------------------------
 def load_training_data() -> pd.DataFrame:
     """Load both historical and online data for training"""
@@ -52,8 +53,6 @@ def load_training_data() -> pd.DataFrame:
 
     df = df.drop(columns=["_id"], errors="ignore")
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-
-    # Drop rows with missing features or target
     df = df.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
 
     print(f"📊 Loaded {len(df)} total rows")
@@ -82,7 +81,6 @@ def compute_metrics(y_true, y_pred):
 def time_split(df: pd.DataFrame):
     """80/20 train/validation split preserving temporal order"""
     split = int(len(df) * 0.8)
-
     train, val = df.iloc[:split], df.iloc[split:]
 
     print(f"✂️ Train: {len(train)} rows | Validation: {len(val)} rows")
@@ -95,23 +93,23 @@ def time_split(df: pd.DataFrame):
     )
 
 # --------------------------------------------------
-# Models - CORRECTED: Improved hyperparameters
+# Models
 # --------------------------------------------------
 MODELS = {
     "GradientBoosting": GradientBoostingRegressor(
         n_estimators=300,
         learning_rate=0.05,
-        max_depth=5,  
-        min_samples_split=10,  
-        min_samples_leaf=4,  
-        subsample=0.8,  
+        max_depth=5,
+        min_samples_split=10,
+        min_samples_leaf=4,
+        subsample=0.8,
         random_state=42,
     ),
     "RandomForest": RandomForestRegressor(
         n_estimators=300,
-        max_depth=15,  
-        min_samples_split=10,  
-        min_samples_leaf=4,  
+        max_depth=15,
+        min_samples_split=10,
+        min_samples_leaf=4,
         max_features='sqrt',
         n_jobs=-1,
         random_state=42,
@@ -123,33 +121,42 @@ MODELS = {
 }
 
 # --------------------------------------------------
-# Main  GitHub Actions compatible DagsHub/MLflow setup
+# Main
 # --------------------------------------------------
 def main():
     """Main training pipeline"""
     
-    # Initialize MLflow with DagsHub tracking URI
-
+    print("\n" + "="*80)
+    print("TRAINING PIPELINE - STARTING")
+    print("="*80 + "\n")
+    
+    # Get DagsHub credentials
     repo_owner = os.getenv("DAGSHUB_REPO_OWNER")
     repo_name = os.getenv("DAGSHUB_REPO_NAME")
     dagshub_token = os.getenv("DAGSHUB_TOKEN")
-    dagshub_username = os.getenv("DAGSHUB_USERNAME", repo_owner)
     
     if not all([repo_owner, repo_name, dagshub_token]):
         raise ValueError("❌ Missing DagsHub credentials in environment variables")
-
-    mlflow_tracking_uri = f"https://dagshub.com/{repo_owner}/{repo_name}.mlflow"
-    mlflow.set_tracking_uri(mlflow_tracking_uri)
     
-    # Set DagsHub credentials for authentication
-    os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_username
-    os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
+    print(f"🔗 Connecting to DagsHub...")
+    print(f"   Repository: {repo_owner}/{repo_name}")
     
-    print(f"🔗 MLflow Tracking URI: {mlflow_tracking_uri}")
+    # CRITICAL: Initialize DagsHub FIRST
+    # This sets up authentication and MLflow tracking
+    dagshub.init(
+        repo_owner=repo_owner,
+        repo_name=repo_name,
+        mlflow=True
+    )
+    
+    print(f"✅ DagsHub initialized")
+    print(f"📊 MLflow tracking URI: {mlflow.get_tracking_uri()}")
 
+    # Set experiment
     mlflow.set_experiment(EXPERIMENT_NAME)
 
     # Load data
+    print("\n📂 Loading training data...")
     df = load_training_data()
     print(f"📅 Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
 
@@ -158,6 +165,8 @@ def main():
 
     run_date = datetime.utcnow().strftime("%Y-%m-%d_%H-%M")
 
+    print(f"\n🚀 Starting training run: {run_date}")
+    
     with mlflow.start_run(run_name=f"daily-train-{run_date}"):
 
         # Log global parameters
@@ -175,26 +184,30 @@ def main():
         # Train each model
         for name, model in MODELS.items():
 
-            print(f"\n🚀 Training {name}...")
+            print(f"\n🤖 Training {name}...")
 
             # Train
             model.fit(X_train, y_train)
             preds = model.predict(X_val)
 
+            # Calculate metrics
             metrics = compute_metrics(y_val, preds)
 
+            # Log metrics
             mlflow.log_metrics({
                 "rmse": metrics["rmse"],
                 "mae": metrics["mae"],
                 "r2": metrics["r2"],
             })
             
+            # Also log with model name prefix for comparison
             mlflow.log_metrics({
                 f"{name}_rmse": metrics["rmse"],
                 f"{name}_mae": metrics["mae"],
                 f"{name}_r2": metrics["r2"],
             })
             
+            # Log model name as tag for dashboard filtering
             mlflow.set_tag("model_name", name)
 
             print(
@@ -224,23 +237,43 @@ def main():
         )
 
         # Promote to Production
+        print("\n🚀 Promoting to Production...")
         client = MlflowClient()
-        latest_version = client.get_latest_versions(
-            name="AQI_NextHour_Model",
-            stages=["None"]
-        )[0]
         
-        client.transition_model_version_stage(
-            name="AQI_NextHour_Model",
-            version=latest_version.version,
-            stage="Production",
-            archive_existing_versions=True
-        )
-        
-        print(f"✅ Model version {latest_version.version} promoted to Production")
+        try:
+            latest_version = client.get_latest_versions(
+                name="AQI_NextHour_Model",
+                stages=["None"]
+            )[0]
+            
+            client.transition_model_version_stage(
+                name="AQI_NextHour_Model",
+                version=latest_version.version,
+                stage="Production",
+                archive_existing_versions=True
+            )
+            
+            print(f"✅ Model version {latest_version.version} promoted to Production")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not promote model to Production: {e}")
+            print("   Model was logged but promotion failed")
 
-    print("\n✅ Training pipeline complete!")
+    print("\n" + "="*80)
+    print("TRAINING PIPELINE - COMPLETE")
+    print("="*80)
+    print(f"\n📊 Summary:")
+    print(f"   Best Model: {best_name}")
+    print(f"   RMSE: {best_rmse:.2f}")
+    print(f"   Training samples: {len(X_train):,}")
+    print(f"   Validation samples: {len(X_val):,}")
+    print("\n✅ Training pipeline successful!")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\n❌ Training failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
