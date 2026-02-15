@@ -145,7 +145,7 @@ def main():
         repo_owner=repo_owner,
         repo_name=repo_name,
         mlflow=True,
-        token=dagshub_token
+        dagshub_token=dagshub_token
     )
     
     print(f"✅ DagsHub initialized")
