@@ -12,7 +12,7 @@ LATITUDE = 24.8607
 LONGITUDE = 67.0011
 CITY = "Karachi"
 
-# CORRECTED: Use the correct APIs
+
 AQI_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast" 
 
@@ -99,8 +99,8 @@ def fetch_weather_data() -> pd.DataFrame:
                 "relative_humidity_2m,"
                 "wind_speed_10m"
             ),
-            "forecast_days": 3,  # Get enough days for matching
-            "past_days": 2,      # ADDED: Get past 2 days
+            "forecast_days": 3, 
+            "past_days": 2,    
         },
         timeout=30,
     )
@@ -114,7 +114,7 @@ def fetch_weather_data() -> pd.DataFrame:
         "wind_speed": data["hourly"]["wind_speed_10m"],
     })
     
-    # CRITICAL: Filter to only past/current data
+
     now = pd.Timestamp.utcnow()
     df = df[df['timestamp'] <= now].copy()
     
