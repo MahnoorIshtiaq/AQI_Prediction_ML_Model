@@ -1,0 +1,19 @@
+{
+  "analysis_date": "2026-02-16T22:42:15.774364",
+  "samples_analyzed": 431,
+  "top_3_features": [
+    "aqi_lag_1",
+    "aqi_change_1h",
+    "o3"
+  ],
+  "top_3_importance": [
+    15.489510780783153,
+    2.502301939750772,
+    0.4301278416106398
+  ],
+  "model_performance": {
+    "test_rmse": 2.3405774808785185,
+    "test_mae": 1.3166019848525738,
+    "test_r2": 0.9822234657619413
+  }
+}
