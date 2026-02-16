@@ -593,13 +593,6 @@ def create_model_comparison_chart(models_df, theme="plotly_white"):
 with st.sidebar:
     st.title("📊 Dashboard Controls")
     
-    # System Status
-    st.markdown("---")
-    st.subheader("🔌 System Status")
-
-    st.success("Prediction Engine: Active")
-    st.info("Direct prediction")
-    
     # Theme selector
     st.markdown("---")
     st.subheader("🎨 Appearance")
