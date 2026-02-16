@@ -15,4 +15,5 @@ FastAPI
 uvicorn
 streamlit
 streamlit-option-menu
+plotly
 
