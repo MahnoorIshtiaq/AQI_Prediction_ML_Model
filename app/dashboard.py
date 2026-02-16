@@ -713,7 +713,7 @@ with tab1:
         st.metric("PM10", f"{pm10} μg/m³" if pm10 != "N/A" else "N/A")
         st.metric("NO₂", f"{no2} μg/m³" if no2 != "N/A" else "N/A")
     
-    # Health message (KEEP AS IS)
+    # Health message 
     if current_aqi > 0:
         health_msg = get_health_message(current_aqi)
         
@@ -766,32 +766,31 @@ with tab1:
                 st.markdown(f"""
                 <div style='
                     background: linear-gradient(135deg, {color} 0%, {color}dd 100%);
-                    padding: 25px 20px;
-                    border-radius: 15px;
+                    padding: 15px 12px;
+                    border-radius: 10px;
                     text-align: center;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                    border: 3px solid {color};
-                    min-height: 200px;
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                    border: 2px solid {color};
+                    min-height: 140px;
                     display: flex;
                     flex-direction: column;
                     justify-content: center;
-                    transition: transform 0.2s;
                 '>
-                    <div style='color: {text_color}; font-size: 0.85em; opacity: 0.9; margin-bottom: 5px;'>
+                    <div style='color: {text_color}; font-size: 0.75em; opacity: 0.85; margin-bottom: 3px;'>
                         {date_str}
                     </div>
-                    <h3 style='
+                    <h4 style='
                         color: {text_color};
-                        margin: 5px 0 20px 0;
-                        font-size: 1.6em;
+                        margin: 2px 0 10px 0;
+                        font-size: 1.2em;
                         font-weight: 700;
                     '>
                         {day_name}
-                    </h3>
+                    </h4>
                     <div style='
                         color: {text_color};
-                        margin: 15px 0;
-                        font-size: 3.5em;
+                        margin: 8px 0;
+                        font-size: 2.5em;
                         font-weight: bold;
                         line-height: 1;
                     '>
@@ -799,12 +798,12 @@ with tab1:
                     </div>
                     <div style='
                         background-color: rgba(255,255,255,0.25);
-                        padding: 10px 20px;
-                        border-radius: 25px;
+                        padding: 5px 12px;
+                        border-radius: 15px;
                         color: {text_color};
                         font-weight: 600;
-                        font-size: 1em;
-                        margin-top: 10px;
+                        font-size: 0.8em;
+                        margin-top: 6px;
                     '>
                         {category}
                     </div>
