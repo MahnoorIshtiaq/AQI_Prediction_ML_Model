@@ -3,7 +3,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests
 from pymongo import MongoClient
 from datetime import datetime, timedelta
 import os
@@ -13,21 +12,22 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from dotenv import load_dotenv
 
+from src.Predict import get_72h_forecast
+
 load_dotenv()
 
 # =============================================================================
-# CONFIGURATION
+# CONFIGURATION - STREAMLIT-ONLY DEPLOYMENT
 # =============================================================================
 
-API_URL = "http://127.0.0.1:8000/Predict"
 CITY = "Karachi"
 
-MONGO_URI = os.getenv("MONGODB_URI")
-DB_NAME = os.getenv("MONGODB_DB")
-COLLECTION = os.getenv("MONGODB_COLLECTION")
+MONGO_URI = os.getenv("MONGODB_URI") or st.secrets.get("MONGODB_URI")
+DB_NAME = os.getenv("MONGODB_DB") or st.secrets.get("MONGODB_DB", "aqi_db")
+COLLECTION = os.getenv("MONGODB_COLLECTION") or st.secrets.get("MONGODB_COLLECTION", "historical_data")
 
-MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI")
-EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME")
+MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI") or st.secrets.get("MLFLOW_TRACKING_URI")
+EXPERIMENT_NAME = os.getenv("MLFLOW_EXPERIMENT_NAME") or st.secrets.get("MLFLOW_EXPERIMENT_NAME", "AQI_Prediction")
 
 if MLFLOW_URI:
     mlflow.set_tracking_uri(MLFLOW_URI)
@@ -52,7 +52,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+
 st.markdown("""
 <style>
     .main {
@@ -124,36 +124,29 @@ def get_health_message(aqi):
     else:
         return "☢️ Health warnings of emergency conditions! Avoid all outdoor activities!"
 
-def check_api_health():
-    """Check if API is responding"""
-    try:
-        response = requests.get("http://127.0.0.1:8000/", timeout=3)
-        return response.status_code == 200
-    except:
-        return False
-
 # =============================================================================
 # DATA LOADING FUNCTIONS (CACHED)
 # =============================================================================
 
-@st.cache_data(ttl=60, show_spinner="Fetching forecast...")
-def get_forecast():
-    """Fetch 72-hour forecast from API"""
+@st.cache_data(ttl=300, show_spinner="🔮 Generating 72-hour forecast...")
+def get_forecast_data():
+    """
+    Fetch 72-hour forecast by calling prediction function directly
+    """
     try:
-        response = requests.get(API_URL, timeout=60)
-        response.raise_for_status()
-        data = response.json()
-
-        if "forecast" not in data:
-            st.error("Invalid API response: missing 'forecast' key")
+        # Call prediction function directly (no HTTP request)
+        forecast_data = get_72h_forecast()
+        
+        if not forecast_data:
+            st.error("Forecast generation returned empty data")
             return pd.DataFrame()
-
-        df = pd.DataFrame(data["forecast"])
+        
+        df = pd.DataFrame(forecast_data)
         
         if df.empty:
-            st.warning("API returned empty forecast")
+            st.warning("Forecast data is empty")
             return df
-
+        
         # Rename and process
         df.rename(columns={"predicted_aqi": "aqi"}, inplace=True)
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
@@ -167,22 +160,12 @@ def get_forecast():
         df = df.sort_values("timestamp").reset_index(drop=True)
         df["category"] = df["aqi"].apply(aqi_category)
         df["color"] = df["aqi"].apply(aqi_color)
-
+        
         return df
-
-    except requests.Timeout:
-        st.error("API timeout - server took too long (>60s)")
-        st.info("The prediction engine may be loading the model. Please wait and try again.")
-        return pd.DataFrame()
-    
-    except requests.ConnectionError:
-        st.error("Cannot connect to API. Is it running?")
-        st.code("Start API: uvicorn app.main:app --reload --port 8000", language="bash")
-        return pd.DataFrame()
     
     except Exception as e:
-        st.error(f"Forecast fetch failed: {str(e)}")
-        with st.expander("View detailed error"):
+        st.error(f"❌ Forecast generation failed: {str(e)}")
+        with st.expander("🔍 View detailed error"):
             st.exception(e)
         return pd.DataFrame()
 
@@ -191,7 +174,7 @@ def get_forecast():
 def get_history(days_back=7):
     """Fetch historical data from MongoDB"""
     if not MONGO_URI:
-        st.warning("MongoDB URI not configured")
+        st.warning("⚠️ MongoDB URI not configured. Add to Streamlit secrets.")
         return pd.DataFrame()
 
     try:
@@ -204,12 +187,12 @@ def get_history(days_back=7):
                     "timestamp": {"$gte": since},
                     "dataset_type": "online"
                 },
-                {"_id": 0}  # Exclude _id field
-            ).sort("timestamp", 1)  # Sort ascending
+                {"_id": 0}
+            ).sort("timestamp", 1)
         )
 
         if not records:
-            st.warning(f"No historical data found for past {days_back} days")
+            st.info(f"No historical data found for past {days_back} days")
             return pd.DataFrame()
 
         df = pd.DataFrame(records)
@@ -230,10 +213,7 @@ def get_history(days_back=7):
 
 @st.cache_data(ttl=300, show_spinner="Loading model metrics...")
 def get_latest_model_metrics():
-    """
-    Get model comparison from LATEST training run
-    FIXED: Now correctly fetches from single latest run
-    """
+    """Get model comparison from LATEST training run"""
     if not EXPERIMENT_NAME or not MLFLOW_URI:
         return pd.DataFrame(), None
 
@@ -243,11 +223,10 @@ def get_latest_model_metrics():
             st.warning(f"Experiment '{EXPERIMENT_NAME}' not found")
             return pd.DataFrame(), None
 
-        # CRITICAL FIX: Get ONLY the latest run
         runs = mlflow.search_runs(
             experiment_ids=[exp.experiment_id],
             order_by=["start_time DESC"],
-            max_results=1  # Only latest run!
+            max_results=1
         )
 
         if runs.empty:
@@ -256,17 +235,14 @@ def get_latest_model_metrics():
 
         latest_run = runs.iloc[0]
         
-        # Extract metrics for all 3 models from this single run
         models = ["GradientBoosting", "RandomForest", "Ridge"]
         model_data = []
         
         for model_name in models:
-            # Try to get metrics with model name prefix
             rmse = latest_run.get(f"metrics.{model_name}_rmse")
             mae = latest_run.get(f"metrics.{model_name}_mae")
             r2 = latest_run.get(f"metrics.{model_name}_r2")
             
-            # Validate all metrics exist and are valid
             if pd.notna(rmse) and pd.notna(mae) and pd.notna(r2):
                 model_data.append({
                     "Model": model_name,
@@ -278,13 +254,11 @@ def get_latest_model_metrics():
         
         if not model_data:
             st.warning("No valid model metrics found in latest run")
-            st.info("Make sure train.py logs metrics with model name prefix (e.g., 'GradientBoosting_rmse')")
             return pd.DataFrame(), None
         
         df = pd.DataFrame(model_data)
         df = df.sort_values("RMSE").reset_index(drop=True)
         
-        # Get production model version
         client = mlflow.tracking.MlflowClient()
         try:
             versions = client.get_latest_versions(
@@ -611,18 +585,14 @@ def create_model_comparison_chart(models_df, theme="plotly_white"):
 # =============================================================================
 
 with st.sidebar:
-    st.title("Dashboard Controls")
+    st.title("📊 Dashboard Controls")
     
-    # API Status
+    # System Status
     st.markdown("---")
-    st.subheader("📊 System Status")
-    api_status = check_api_health()
-    
-    if api_status:
-        st.success("🟢 API Online")
-    else:
-        st.error("🔴 API Offline")
-        st.info("Start API:\n```bash\nuvicorn app.main:app --reload\n```")
+    st.subheader("🔌 System Status")
+
+    st.success("Prediction Engine: Active")
+    st.info("Direct prediction")
     
     # Theme selector
     st.markdown("---")
@@ -646,7 +616,7 @@ with st.sidebar:
     
     # Refresh button
     st.markdown("---")
-    if st.button("Refresh All Data", use_container_width=True):
+    if st.button("🔄 Refresh All Data", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     
@@ -656,9 +626,9 @@ with st.sidebar:
     st.info(f"""
     **Location:** {CITY}, Pakistan  
     **Forecast:** 72 hours  
-    **Update:** Every hour  
+    **Update:** Every 5 minutes  
     **Models:** GB, RF, Ridge  
-    **Version:** 2.0
+    **Version:** 2.0 (Streamlit-Only)
     """)
     
     st.caption(f"Last refresh: {datetime.now().strftime('%H:%M:%S')}")
@@ -667,7 +637,9 @@ with st.sidebar:
 # LOAD DATA
 # =============================================================================
 
-forecast_df = get_forecast()
+# CRITICAL CHANGE: Call get_forecast_data() instead of API request
+
+forecast_df = get_forecast_data()
 history_df = get_history(days_back=days_back)
 models_df, production_version = get_latest_model_metrics()
 
@@ -693,8 +665,8 @@ else:
 # MAIN CONTENT - TABS
 # =============================================================================
 
-st.title(f"{CITY} Air Quality Dashboard")
-st.markdown("*Real-time air quality monitoring and 72-hour forecasting*")
+st.title(f"🌍 {CITY} Air Quality Dashboard")
+st.markdown("*Real-time air quality monitoring and 72-hour forecasting powered by ML*")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Overview & Forecast",
@@ -702,6 +674,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "🤖 Model Performance",
     "📚 Data Explorer"
 ])
+
 
 # =============================================================================
 # TAB 1: OVERVIEW & FORECAST
