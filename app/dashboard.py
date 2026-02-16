@@ -682,7 +682,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.header("Current Conditions & 72-Hour Forecast")
     
-    # Row 1: Current AQI Gauge + Stats (KEEP AS IS)
+    # Row 1: Current AQI Gauge + Stats
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col1:
@@ -691,6 +691,7 @@ with tab1:
             fig_gauge = create_aqi_gauge(current_aqi, theme)
             st.plotly_chart(fig_gauge, use_container_width=True)
             
+            # Category badge
             category = aqi_category(current_aqi)
             color = aqi_color(current_aqi)
             st.markdown(f"""
@@ -713,7 +714,7 @@ with tab1:
         st.metric("PM10", f"{pm10} μg/m³" if pm10 != "N/A" else "N/A")
         st.metric("NO₂", f"{no2} μg/m³" if no2 != "N/A" else "N/A")
     
-    # Health message 
+    # Health message
     if current_aqi > 0:
         health_msg = get_health_message(current_aqi)
         
@@ -732,93 +733,21 @@ with tab1:
     if not forecast_df.empty:
         fig_forecast = create_forecast_chart(forecast_df, theme, show_aqi_zones)
         st.plotly_chart(fig_forecast, use_container_width=True)
-
-        st.markdown("### 📅 3-Day Forecast Outlook")
         
-        # Prepare forecast by day
-        forecast_df_copy = forecast_df.copy()
-        forecast_df_copy['date'] = forecast_df_copy['timestamp'].dt.date
-        forecast_df_copy['day_name'] = forecast_df_copy['timestamp'].dt.strftime('%A')
+        # Forecast statistics
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Current", f"{current_aqi}")
+        col2.metric("24h Avg", f"{forecast_df.head(24)['aqi'].mean():.0f}")
+        col3.metric("Max (72h)", f"{forecast_df['aqi'].max():.0f}")
+        col4.metric("Min (72h)", f"{forecast_df['aqi'].min():.0f}")
         
-        # Group by date and calculate daily average
-        daily_forecast = forecast_df_copy.groupby(['date', 'day_name']).agg({
-            'aqi': 'mean'
-        }).reset_index()
-        
-        # Get first 3 days (or less if not enough data)
-        next_3_days = daily_forecast.head(3)
-        
-        # Create columns (up to 3)
-        num_days = len(next_3_days)
-        cols = st.columns(num_days)
-        
-        for col, row in zip(cols, next_3_days.itertuples()):
-            day_name = row.day_name
-            avg_aqi = row.aqi
-            date_str = row.date.strftime('%b %d')
-            category = aqi_category(avg_aqi)
-            color = aqi_color(avg_aqi)
-            
-            # Determine text color based on category
-            text_color = "white" if category not in ["Good", "Moderate"] else "black"
-            
-            with col:
-                st.markdown(f"""
-                <div style='
-                    background: linear-gradient(135deg, {color} 0%, {color}dd 100%);
-                    padding: 15px 12px;
-                    border-radius: 10px;
-                    text-align: center;
-                    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-                    border: 2px solid {color};
-                    min-height: 140px;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                '>
-                    <div style='color: {text_color}; font-size: 0.75em; opacity: 0.85; margin-bottom: 3px;'>
-                        {date_str}
-                    </div>
-                    <h4 style='
-                        color: {text_color};
-                        margin: 2px 0 10px 0;
-                        font-size: 1.2em;
-                        font-weight: 700;
-                    '>
-                        {day_name}
-                    </h4>
-                    <div style='
-                        color: {text_color};
-                        margin: 8px 0;
-                        font-size: 2.5em;
-                        font-weight: bold;
-                        line-height: 1;
-                    '>
-                        {avg_aqi:.0f}
-                    </div>
-                    <div style='
-                        background-color: rgba(255,255,255,0.25);
-                        padding: 5px 12px;
-                        border-radius: 15px;
-                        color: {text_color};
-                        font-weight: 600;
-                        font-size: 0.8em;
-                        margin-top: 6px;
-                    '>
-                        {category}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Alerts (KEEP AS IS)
+        # Alerts
         max_aqi = forecast_df['aqi'].max()
         if max_aqi > 150:
             max_time = forecast_df.loc[forecast_df['aqi'].idxmax(), 'timestamp']
-            st.warning(f"**⚠️ Alert:** AQI expected to reach {max_aqi:.0f} ({aqi_category(max_aqi)}) at {max_time.strftime('%Y-%m-%d %H:%M')}")
+            st.warning(f"**Alert:** AQI expected to reach {max_aqi:.0f} ({aqi_category(max_aqi)}) at {max_time.strftime('%Y-%m-%d %H:%M')}")
         
-        # Download forecast (KEEP AS IS)
+        # Download forecast
         with st.expander("📥 Download Forecast Data"):
             csv = forecast_df.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -836,17 +765,13 @@ with tab1:
                 height=300
             )
     else:
-        st.error("❌ No forecast data available")
-        st.info("""
-        **Possible causes:**
-        - Model not loaded from MLflow
-        - MongoDB connection issue
-        - Missing required features
-        """)
+        st.error("No forecast data available. Please check API connection.")
+        if not api_status:
+            st.info("Start the API server first:\n```bash\nuvicorn app.main:app --reload\n```")
     
-    # Pollutant trends (KEEP AS IS)
+    # Pollutant forecast (if available)
     st.markdown("---")
-    st.subheader("💨 Pollutant Trends")
+    st.subheader("Pollutant Trends")
     
     if not history_df.empty:
         fig_pollutants = create_pollutant_chart(history_df, theme)
