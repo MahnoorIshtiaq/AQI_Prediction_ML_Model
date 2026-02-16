@@ -48,7 +48,6 @@ AQI_CATEGORIES = [
 
 st.set_page_config(
     page_title=f"{CITY} AQI Dashboard - Production v2.0",
-    page_icon="🌬️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -60,13 +59,13 @@ st.markdown("""
         background-color: #f8f9fa;
     }
     .stMetric {
-        background-color: grey;
+        background-color: #0D2CF5;
         padding: 15px;
         border-radius: 10px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .metric-card {
-        background-color: grey;
+        background-color: #0D2CF5;
         padding: 20px;
         border-radius: 10px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -146,13 +145,13 @@ def get_forecast():
         data = response.json()
 
         if "forecast" not in data:
-            st.error("❌ Invalid API response: missing 'forecast' key")
+            st.error("Invalid API response: missing 'forecast' key")
             return pd.DataFrame()
 
         df = pd.DataFrame(data["forecast"])
         
         if df.empty:
-            st.warning("⚠️ API returned empty forecast")
+            st.warning("API returned empty forecast")
             return df
 
         # Rename and process
@@ -183,7 +182,7 @@ def get_forecast():
     
     except Exception as e:
         st.error(f"Forecast fetch failed: {str(e)}")
-        with st.expander("🔍 View detailed error"):
+        with st.expander("View detailed error"):
             st.exception(e)
         return pd.DataFrame()
 
@@ -694,7 +693,7 @@ else:
 # MAIN CONTENT - TABS
 # =============================================================================
 
-st.title(f"🌬️ {CITY} Air Quality Dashboard")
+st.title(f"{CITY} Air Quality Dashboard")
 st.markdown("*Real-time air quality monitoring and 72-hour forecasting*")
 
 tab1, tab2, tab3, tab4 = st.tabs([
