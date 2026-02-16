@@ -734,12 +734,104 @@ with tab1:
         fig_forecast = create_forecast_chart(forecast_df, theme, show_aqi_zones)
         st.plotly_chart(fig_forecast, use_container_width=True)
         
-        # Forecast statistics
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Current", f"{current_aqi}")
-        col2.metric("24h Avg", f"{forecast_df.head(24)['aqi'].mean():.0f}")
-        col3.metric("Max (72h)", f"{forecast_df['aqi'].max():.0f}")
-        col4.metric("Min (72h)", f"{forecast_df['aqi'].min():.0f}")
+        st.markdown("### 📅 3-Day Forecast Summary")
+        
+        # Prepare forecast by day
+        forecast_df_copy = forecast_df.copy()
+        forecast_df_copy['date'] = forecast_df_copy['timestamp'].dt.date
+        forecast_df_copy['day_name'] = forecast_df_copy['timestamp'].dt.strftime('%A')
+        
+        # Group by date
+        daily_forecast = forecast_df_copy.groupby(['date', 'day_name']).agg({
+            'aqi': 'mean'
+        }).reset_index()
+        
+        # Get first 3 days
+        next_3_days = daily_forecast.head(3)
+        
+        # Create 3 columns
+        cols = st.columns(3)
+        
+        for idx, (col, row) in enumerate(zip(cols, next_3_days.itertuples())):
+            day_name = row.day_name
+            avg_aqi = row.aqi
+            date_str = row.date.strftime('%b %d')
+            category = aqi_category(avg_aqi)
+            color = aqi_color(avg_aqi)
+            
+            with col:
+                st.markdown(f"""
+                <div style='
+                    background: linear-gradient(135deg, {color}20 0%, {color}40 100%);
+                    backdrop-filter: blur(10px);
+                    border: 2px solid {color}60;
+                    border-radius: 20px;
+                    padding: 30px 20px;
+                    text-align: center;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+                    min-height: 220px;
+                    position: relative;
+                    overflow: hidden;
+                '>
+                    <!-- Decorative circle -->
+                    <div style='
+                        position: absolute;
+                        top: -30px;
+                        right: -30px;
+                        width: 100px;
+                        height: 100px;
+                        background: {color}30;
+                        border-radius: 50%;
+                    '></div>
+                    
+                    <div style='position: relative; z-index: 1;'>
+                        <div style='color: #666; font-size: 0.9em; margin-bottom: 5px;'>
+                            {date_str}
+                        </div>
+                        <h2 style='
+                            color: #333;
+                            margin: 5px 0 20px 0;
+                            font-size: 2em;
+                            font-weight: 700;
+                        '>
+                            {day_name}
+                        </h2>
+                        <div style='
+                            background: {color};
+                            color: {"white" if category not in ["Good", "Moderate"] else "black"};
+                            padding: 20px;
+                            border-radius: 15px;
+                            margin: 15px 0;
+                            box-shadow: 0 4px 15px {color}40;
+                        '>
+                            <div style='font-size: 3em; font-weight: bold; line-height: 1;'>
+                                {avg_aqi:.0f}
+                            </div>
+                            <div style='
+                                font-size: 0.85em;
+                                margin-top: 8px;
+                                opacity: 0.95;
+                                font-weight: 600;
+                            '>
+                                AQI
+                            </div>
+                        </div>
+                        <div style='
+                            background: rgba(255,255,255,0.5);
+                            padding: 8px 15px;
+                            border-radius: 25px;
+                            color: #333;
+                            font-weight: 600;
+                            font-size: 0.95em;
+                            border: 1px solid {color}40;
+                        '>
+                            {category}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
         
         # Alerts
         max_aqi = forecast_df['aqi'].max()
