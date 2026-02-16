@@ -64,7 +64,7 @@ def configure_mlflow():
     repo = os.getenv("DAGSHUB_REPO_NAME")
     token = os.getenv("DAGSHUB_TOKEN")
 
-    tracking_uri = f"https://dagshub.com/{owner}/{repo}.mlflow"
+    tracking_uri = f"https://dagshub.com/mahanoorishtiaq03/my-first-repo.mlflow/"
 
     # Explicit MLflow auth (NO OAuth flow)
     os.environ["MLFLOW_TRACKING_USERNAME"] = owner
