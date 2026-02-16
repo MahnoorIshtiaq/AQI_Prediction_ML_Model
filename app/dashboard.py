@@ -625,7 +625,7 @@ with st.sidebar:
     st.info(f"""
     **Location:** {CITY}, Pakistan  
     **Forecast:** 72 hours  
-    **Update:** Every 5 minutes  
+    **Update:** Every every hour  
     **Models:** GB, RF, Ridge  
     **Version:** 2.0 (Streamlit-Only)
     """)
