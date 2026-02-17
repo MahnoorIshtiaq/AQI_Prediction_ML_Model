@@ -3,6 +3,7 @@
 **A fully serverless, end-to-end ML pipeline forecasting Air Quality Index (AQI) for Karachi, Pakistan over the next 72 hours.**
 
 > Built with OpenMeteo · MongoDB Atlas · DagsHub · GitHub Actions · FastAPI · Streamlit
+> Streamlit Link: https://aqipredictionmlmodel.streamlit.app/
 
 ---
 
@@ -193,3 +194,4 @@ Key insights from SHAP analysis:
 - Stack: Python · MongoDB · MLflow · DagsHub · Streamlit · FastAPI
 
 ---
+
