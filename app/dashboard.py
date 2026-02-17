@@ -134,6 +134,22 @@ def get_health_message(aqi):
     else:
         return "☢️ Health warnings of emergency conditions! Avoid all outdoor activities!"
 
+def shap_image(filename: str):
+    """
+    Safely display a SHAP figure using an absolute path.
+    Shows a friendly warning instead of crashing when the file is missing.
+    """
+    path = SHAP_DIR / filename
+    if path.exists():
+        st.image(str(path))
+    else:
+        st.warning(
+            f"⚠️ SHAP figure not found: `{path}`\n\n"
+            "Run `notebooks/SHAP_Explainability.ipynb` locally, commit the generated "
+            "`figures/shap/` folder to your repository, then redeploy."
+        )
+
+
 # =============================================================================
 # DATA LOADING FUNCTIONS (CACHED)
 # =============================================================================
