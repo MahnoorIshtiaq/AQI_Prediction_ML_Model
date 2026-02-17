@@ -8,7 +8,7 @@
 
 ---
 
-## 📌 Problem Statement
+## Problem Statement
 
 Air pollution is a critical public health issue in Karachi, one of the world's most polluted megacities. There is no accessible, real-time, locally-tailored AQI forecasting tool that provides actionable 72-hour predictions with model explainability.
 
@@ -19,7 +19,7 @@ This project solves that by building an automated, serverless ML pipeline that:
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 ```
 OpenMeteo API
@@ -45,7 +45,7 @@ DagsHub Model Registry   FastAPI Backend
 
 ---
 
-## ⚙️ Tech Stack
+## Tech Stack
 
 | Component | Technology | Why |
 |-----------|-----------|-----|
@@ -89,7 +89,7 @@ karachi-aqi-predictor/
 
 ---
 
-## 🔄 Pipelines
+## Pipelines
 
 ### Feature Pipeline (Hourly)
 Fetches live data from OpenMeteo API and computes:
@@ -107,7 +107,7 @@ Fetches live data from OpenMeteo API and computes:
 
 ---
 
-## 📊 Model Performance
+## Model Performance
 
 | Model | RMSE | MAE | R² |
 |-------|------|-----|-----|
@@ -117,7 +117,7 @@ Fetches live data from OpenMeteo API and computes:
 
 ---
 
-## 🎯 Features
+## Features
 
 - ✅ Real-time AQI gauge with color-coded categories
 - ✅ 72-hour interactive AQI forecast chart
@@ -129,7 +129,7 @@ Fetches live data from OpenMeteo API and computes:
 
 ---
 
-## 🔬 AQI Categories
+## AQI Categories
 
 | AQI Range | Category | Color |
 |-----------|----------|-------|
@@ -142,7 +142,7 @@ Fetches live data from OpenMeteo API and computes:
 
 ---
 
-## 🤖 CI/CD Automation
+## CI/CD Automation
 
 ```yaml
 # Feature pipeline runs every hour
@@ -158,7 +158,7 @@ schedule:
 
 ---
 
-## 📈 SHAP Explainability
+## SHAP Explainability
 
 
 Key insights from SHAP analysis:
@@ -169,7 +169,7 @@ Key insights from SHAP analysis:
 
 ---
 
-## ⚠️ Known Limitations
+## Known Limitations
 
 - Forecasts are for Karachi only (Lat: 24.8607, Lon: 67.0011)
 - Sudden pollution spikes (industrial accidents, fires) may reduce accuracy
@@ -177,7 +177,7 @@ Key insights from SHAP analysis:
 
 ---
 
-## 🔮 Future Improvements
+## Future Improvements
 
 - [ ] Integrate real 72-hour weather forecast API (OpenMeteo forecast endpoint)
 - [ ] Add uncertainty bands to forecasts (quantile regression)
@@ -188,12 +188,13 @@ Key insights from SHAP analysis:
 
 ---
 
-## 👤 Author
+## Author
 
 **Mahnoor Ishtiaq - Data Science Intern @10PEARLS**
 - Project: PEARLS AQI Predictor
 - Stack: Python · MongoDB · MLflow · DagsHub · Streamlit · FastAPI
 
 ---
+
 
 
