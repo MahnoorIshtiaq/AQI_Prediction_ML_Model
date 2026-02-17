@@ -276,6 +276,48 @@ How do different samples travel different paths to reach their final predictions
 
 ---
 
+## Dashboard Screenshots
+
+![Dashboard](Images/Image1.png)
+
+---
+
+![Image_2](Images/Image2.png)
+
+---
+
+![Image_3](Images/Image3.png)
+
+---
+
+![Image_4](Images/Image4.png)
+
+---
+
+![Image_5](Images/Image5.png)
+
+---
+
+![Image_6](Images/Image6.png)
+
+---
+
+![Image_7](Images/Image7.png)
+
+---
+
+![Image_8](Images/Image8.png)
+
+---
+
+![Image_9](Images/Image9.png)
+
+---
+
+![Image_10](Images/Image10.png)
+
+---
+
 ## Author
 
 **Mahnoor Ishtiaq - Data Science Intern @10PEARLS**
@@ -283,5 +325,6 @@ How do different samples travel different paths to reach their final predictions
 - Stack: Python · MongoDB · MLflow · DagsHub · Streamlit · FastAPI
 
 ---
+
 
 
