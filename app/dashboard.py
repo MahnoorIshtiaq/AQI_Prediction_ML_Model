@@ -926,6 +926,29 @@ with tab3:
         })
         
         st.dataframe(styled_df, use_container_width=True)
+        st.markdown("---")
+        st.subheader("🔬 Model Explainability (SHAP)")
+        tab_shap1, tab_shap2, tab_shap3 = st.tabs([
+            "Feature Importance",
+            "Example Explanations",
+            "Feature Interactions"
+        ])
+        with tab_shap1:
+            st.markdown("### Global Feature Importance")
+            st.image('figures/shap/01_feature_importance_bar.png')
+            st.image('figures/shap/02_summary_beeswarm.png')
+            with tab_shap2:
+                st.markdown("### Why These Predictions?")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**High AQI Example:**")
+                    st.image('figures/shap/04_force_plot_high_aqi.png')
+                    with col2:
+                        st.markdown("**Low AQI Example:**")
+                        st.image('figures/shap/05_force_plot_low_aqi.png')
+                        with tab_shap3:
+                            st.markdown("### Feature Interactions")
+                            st.image('figures/shap/08_feature_interaction.png')
         
         # Model interpretation
         st.markdown("---")
