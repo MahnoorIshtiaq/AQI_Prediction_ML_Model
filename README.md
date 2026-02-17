@@ -5,7 +5,7 @@
 > Built with OpenMeteo · MongoDB Atlas · DagsHub · GitHub Actions · FastAPI · Streamlit
 
 > AQI Prediction Dashboard Link: https://aqipredictionmlmodel.streamlit.app/
-
+![Dashboard](Images/Image1.png)
 ---
 
 ## Problem Statement
@@ -283,4 +283,5 @@ How do different samples travel different paths to reach their final predictions
 - Stack: Python · MongoDB · MLflow · DagsHub · Streamlit · FastAPI
 
 ---
+
 
