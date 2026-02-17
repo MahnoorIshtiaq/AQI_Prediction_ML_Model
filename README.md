@@ -280,28 +280,53 @@ How do different samples travel different paths to reach their final predictions
 
 ---
 
-### 1.Main Screen
+### 1. Main Screen
 
 ![Dashboard](Images/Image1.png)
 
 ---
 
-### 2 72-Hour AQI Forecast
+### 2. 72-Hour AQI Forecast
 ![Image_2](Images/Image2.png)
 
 ---
-### 3 Forecast Data
+
+### 3. Forecast Data
 ![Image_3](Images/Image3.png)
 
 ---
 
+### 4. Pollutant Trends
 ![Image_4](Images/Image4.png)
+
+---
+
+### 5. Historical Data Analysis (Past 7 Days)
 ![Image_5](Images/Image5.png)
+
+---
+
+### 6. AQI Trend Over Time
 ![Image_6](Images/Image6.png)
+
+---
+
+### 7. AQI Distribution & Hourly Pattern
 ![Image_7](Images/Image7.png)
+
+---
+
+### 8. Model Performance Analysis
 ![Image_8](Images/Image8.png)
+
+---
+
+### 9. Model Comparison
 ![Image_9](Images/Image9.png)
 
+---
+
+### 10. Detailed Metrics Table
 ![Image_10](Images/Image10.png)
 
 ## Author
@@ -311,6 +336,7 @@ How do different samples travel different paths to reach their final predictions
 - Stack: Python · MongoDB · MLflow · DagsHub · Streamlit · FastAPI
 
 ---
+
 
 
 
