@@ -73,7 +73,8 @@ karachi-aqi-predictor/
 │   ├── main.py                 # FastAPI backend
 │   └── dashboard.py            # Streamlit frontend
 │
-├── notebooks/
+├── Notebooks/
+    ├── Figures\shap            #SHAP Figures
 │   ├── EDA.ipynb               # Exploratory Data Analysis
 │   └── SHAP_Explainability.ipynb  # SHAP feature importance analysis
 │
@@ -167,6 +168,47 @@ Key insights from SHAP analysis:
 - `wind_speed` negatively impacts AQI (disperses pollution)
 - Time features (hour, day_of_week) capture traffic patterns
 
+1. Global Feature Importance
+Which features matter most across all predictions?
+![01_feature_importance_bar](Notebooks/figures/shap/01_feature_importance_bar.png)
+Mean absolute SHAP value per feature. Higher = stronger average influence on AQI.
+
+2. SHAP Summary Plot
+How does each feature affect predictions — and in which direction?
+![02_summary_beeswarm](Notebooks/figures/shap/02_summary_beeswarm.png)
+Each dot = one prediction. Red = high feature value · Blue = low feature value · X-position = impact on AQI.
+
+3. Feature Dependence Plots
+What is the relationship between individual features and AQI?
+![03_dependence_plot](Notebooks/figures/shap/03_dependence_plots.png)
+X-axis = feature value · Y-axis = SHAP impact on AQI · Colour = interacting feature (auto-selected by SHAP).
+
+4. Force Plot — High AQI Prediction
+Why did the model predict a high AQI for this specific instance?
+![04_force_plot_high_aqi](Notebooks/figures/shap/04_force_plot_high_aqi.png)
+Base value = model's average prediction. Red arrows push AQI higher · Blue arrows push it lower · Width = magnitude.
+
+5. Force Plot — Low AQI Prediction
+Why did the model predict a low AQI for this specific instance?
+![05_force_plot_low_aqi](Notebooks/figures/shap/05_force_plot_low_aqi.png)
+
+6. Waterfall Plot — High AQI
+How do features accumulate step-by-step to reach a high AQI prediction?
+![06_waterfall_high_aqi](Notebooks/figures/shap/06_waterfall_high_aqi.png)
+
+7. Waterfall Plot — Low AQI
+How do features accumulate step-by-step to reach a low AQI prediction?
+![07_waterfall_low_aqi](Notebooks/figures/shap/07_waterfall_low_aqi.png)
+
+8. Feature Interaction Plot
+How do the top two features work together to affect AQI?
+![08_feature_interaction](Notebooks/figures/shap/08_feature_interaction.png)
+Colour gradient shows how the second feature modulates the primary feature's effect on AQI.
+
+9. Decision Plot — 50 Prediction Paths
+How do different samples travel different paths to reach their final predictions?
+![09_decision_plot](Notebooks/figures/shap/09_decision_plot.png)
+Each line = one prediction's journey from base value to output. Spread = where predictions diverge most.
 ---
 
 ## Known Limitations
@@ -195,6 +237,7 @@ Key insights from SHAP analysis:
 - Stack: Python · MongoDB · MLflow · DagsHub · Streamlit · FastAPI
 
 ---
+
 
 
 
