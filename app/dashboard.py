@@ -6,6 +6,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -21,6 +23,8 @@ from dotenv import load_dotenv
 from src.Predict import get_72h_forecast
 
 load_dotenv()
+
+SHAP_DIR = Path(__file__).parent.parent / "figures" / "shap"
 
 # =============================================================================
 # CONFIGURATION - STREAMLIT-ONLY DEPLOYMENT
