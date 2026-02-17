@@ -177,7 +177,7 @@ SHAP (SHapley Additive exPlanations) reveals which features drive AQI prediction
 
 Which features matter most across **all** predictions?
 
-![Global Feature Importance](notebooks/figures/shap/01_feature_importance_bar.png)
+![Global Feature Importance](Notebooks/figures/shap/01_feature_importance_bar.png)
 
 *Mean absolute SHAP value per feature. Higher = stronger average influence on AQI.*
 
@@ -187,7 +187,7 @@ Which features matter most across **all** predictions?
 
 How does each feature affect predictions — and in which direction?
 
-![SHAP Summary Beeswarm](notebooks/figures/shap/02_summary_beeswarm.png)
+![SHAP Summary Beeswarm](Notebooks/figures/shap/02_summary_beeswarm.png)
 
 *Each dot = one prediction. **Red** = high feature value · **Blue** = low feature value · X-position = impact on AQI.*
 
@@ -197,7 +197,7 @@ How does each feature affect predictions — and in which direction?
 
 What is the relationship between individual features and AQI?
 
-![Feature Dependence Plots](notebooks/figures/shap/03_dependence_plots.png)
+![Feature Dependence Plots](Notebooks/figures/shap/03_dependence_plots.png)
 
 *X-axis = feature value · Y-axis = SHAP impact on AQI · Colour = interacting feature (auto-selected by SHAP).*
 
@@ -207,7 +207,7 @@ What is the relationship between individual features and AQI?
 
 Why did the model predict a **high** AQI for this specific instance?
 
-![Force Plot — High AQI](notebooks/figures/shap/04_force_plot_high_aqi.png)
+![Force Plot — High AQI](Notebooks/figures/shap/04_force_plot_high_aqi.png)
 
 *Base value = model's average prediction. **Red arrows** push AQI higher · **Blue arrows** push it lower · Width = magnitude.*
 
@@ -217,7 +217,7 @@ Why did the model predict a **high** AQI for this specific instance?
 
 Why did the model predict a **low** AQI for this specific instance?
 
-![Force Plot — Low AQI](notebooks/figures/shap/05_force_plot_low_aqi.png)
+![Force Plot — Low AQI](Notebooks/figures/shap/05_force_plot_low_aqi.png)
 
 ---
 
@@ -225,7 +225,7 @@ Why did the model predict a **low** AQI for this specific instance?
 
 How do features accumulate step-by-step to reach a **high** AQI prediction?
 
-![Waterfall — High AQI](notebooks/figures/shap/06_waterfall_high_aqi.png)
+![Waterfall — High AQI](Notebooks/figures/shap/06_waterfall_high_aqi.png)
 
 ---
 
@@ -233,7 +233,7 @@ How do features accumulate step-by-step to reach a **high** AQI prediction?
 
 How do features accumulate step-by-step to reach a **low** AQI prediction?
 
-![Waterfall — Low AQI](notebooks/figures/shap/07_waterfall_low_aqi.png)
+![Waterfall — Low AQI](Notebooks/figures/shap/07_waterfall_low_aqi.png)
 
 ---
 
@@ -241,7 +241,7 @@ How do features accumulate step-by-step to reach a **low** AQI prediction?
 
 How do the top two features work **together** to affect AQI?
 
-![Feature Interaction](notebooks/figures/shap/08_feature_interaction.png)
+![Feature Interaction](Notebooks/figures/shap/08_feature_interaction.png)
 
 *Colour gradient shows how the second feature modulates the primary feature's effect on AQI.*
 
@@ -251,7 +251,7 @@ How do the top two features work **together** to affect AQI?
 
 How do different samples travel different paths to reach their final predictions?
 
-![Decision Plot](notebooks/figures/shap/09_decision_plot.png)
+![Decision Plot](Notebooks/figures/shap/09_decision_plot.png)
 
 *Each line = one prediction's journey from base value to output. Spread = where predictions diverge most.*
 
@@ -283,3 +283,4 @@ How do different samples travel different paths to reach their final predictions
 - Stack: Python · MongoDB · MLflow · DagsHub · Streamlit · FastAPI
 
 ---
+
