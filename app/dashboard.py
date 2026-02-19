@@ -136,39 +136,37 @@ def get_health_message(aqi):
 
 @st.cache_data(ttl=300, show_spinner="🔮 Generating 72-hour forecast...")
 def get_forecast_data():
-    """
-    Fetch 72-hour forecast by calling prediction function directly
-    """
     try:
-        # Call prediction function directly (no HTTP request)
+        import sklearn
+        if sklearn.__version__ != "1.4.2":
+            st.warning(f"⚠️ sklearn version mismatch: expected 1.4.2, got {sklearn.__version__}. Retrain model.")
+
         forecast_data = get_72h_forecast()
-        
+
         if not forecast_data:
             st.error("Forecast generation returned empty data")
             return pd.DataFrame()
-        
+
         df = pd.DataFrame(forecast_data)
-        
         if df.empty:
-            st.warning("Forecast data is empty")
             return df
-        
-        # Rename and process
+
         df.rename(columns={"predicted_aqi": "aqi"}, inplace=True)
         df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
         df["timestamp"] = df["timestamp"].dt.tz_convert("Asia/Karachi")
         df["timestamp"] = df["timestamp"].dt.tz_localize(None)
-        
-        # Validate AQI values
         df = df[df['aqi'] >= 0].copy()
         df['aqi'] = df['aqi'].clip(0, 500)
-        
         df = df.sort_values("timestamp").reset_index(drop=True)
         df["category"] = df["aqi"].apply(aqi_category)
         df["color"] = df["aqi"].apply(aqi_color)
-        
+
         return df
-    
+
+    except ModuleNotFoundError as e:
+        st.error(f"❌ Dependency mismatch: `{e}` — Retrain model using scikit-learn==1.4.2")
+        return pd.DataFrame()
+
     except Exception as e:
         st.error(f"❌ Forecast generation failed: {str(e)}")
         with st.expander("🔍 View detailed error"):
