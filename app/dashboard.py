@@ -765,9 +765,7 @@ with tab1:
                 height=300
             )
     else:
-        st.error("No forecast data available. Please check API connection.")
-        if not api_status:
-            st.info("Start the API server first:\n```bash\nuvicorn app.main:app --reload\n```")
+        st.error("❌ No forecast data available. The prediction service may be experiencing issues.")
     
     # Pollutant forecast (if available)
     st.markdown("---")
