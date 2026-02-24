@@ -33,7 +33,7 @@ jobs:
               'scikit-learn': (sklearn.__version__, '1.4.2'),
               'numpy':        (numpy.__version__,   '1.26.4'),
               'pandas':       (pandas.__version__,  '2.2.0'),
-              'mlflow':       (mlflow.__version__,  '2.11.1'),
+              'mlflow':       (mlflow.__version__,  '2.15.1'),
           }
           failed = []
           for lib, (got, expected) in versions.items():
